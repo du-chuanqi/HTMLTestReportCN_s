@@ -65,13 +65,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 # URL: http://tungwaiyip.info/software/HTMLTestRunner.html
 
-__author__ = "Wai Yip Tung,  Findyou"
-__version__ = "0.8.2.2"
+__author__ = "Deardu,  Findyou"
+__version__ = "0.8.2.3"
 
 
 """
 Change History
-Version 0.8.2.2-duwei
+Version 0.8.2.3 -Deardu
+*增加支持多张截图展示
+
+Version 0.8.2.2-huanghe
 *添加截图展示功能
 
 Version 0.8.2.1 -Findyou
@@ -433,8 +436,9 @@ table       { font-size: 100%; }
 
     REPORT_TEST_OUTPUT_TMPL = r"""
 %(id)s: %(output)s
+<a target='_blank' %(hidde)s href="%(image)s">
 <img %(hidde)s src="%(image)s" alt="picture_shot" height="200" width="400"></img>
-<a  %(hidde)s  href="%(image)s">picture_shot</a>
+</a>
 """ # variables: (id, output)
 
     # ------------------------------------------------------------------------
@@ -736,32 +740,53 @@ class HTMLTestRunner(Template_mixin):
                 print(uo)'''
         #图片路径在代码里面需要输出到控制台，要保证
         hidde_status = '''hidden="hidden"'''
-        image_url = ''
+        image_url = []
         for heuo in str(uo).split('\n'):
             if heuo.find('screenpicture') != -1:
                 hidde_status = ''
-                image_url = 'file:///'+heuo
+                image_url.append('file:///'+heuo)
             else:
                 print(heuo)
         hidde_status = hidde_status
-        image_url = image_url
+        # image_url = image_url
         # 插入图片
         #unum = str(uo).find('screenpicture')
 
-        script = self.REPORT_TEST_OUTPUT_TMPL % dict(
-            id = tid[2:],
-            #output = saxutils.escape(uo+ue),
-            output = saxutils.escape(ue),
-            hidde=hidde_status,
-            image=image_url,
-        )
+        script = []
+        if image_url != []:
+            script.append(self.REPORT_TEST_OUTPUT_TMPL % dict(
+                id=tid[2:],
+                output=saxutils.escape(uo + ue),
+                # output = saxutils.escape(ue),
+                hidde='hidden',
+                image='IAMGEURL'
+                #image= image_url[0]
+            ))
+            j=1
+            for i in image_url:
+                script .append( self.REPORT_TEST_OUTPUT_TMPL % dict(
+                    id = '截图%s'%(j),
+                    #id=tid[2:],
+                    output = '',
+                    hidde=hidde_status,
+                    image=i,
+                ))
+                j+=1
+        else:
+            script.append(self.REPORT_TEST_OUTPUT_TMPL % dict(
+                id=tid[2:],
+                output=saxutils.escape(uo + ue),
+                # output = saxutils.escape(ue),
+                hidde=hidde_status,
+                image=image_url,
+            ))
 
         row = tmpl % dict(
             tid = tid,
             Class = (n == 0 and 'hiddenRow' or 'none'),
             style = n == 2 and 'errorCase' or (n == 1 and 'failCase' or 'passCase'),
             desc = desc,
-            script = script,
+            script = ''.join(script),
             hidde = hidde_status,
             image = image_url,
             status = self.STATUS[n],
@@ -793,6 +818,8 @@ class TestProgram(unittest.TestProgram):
         if self.testRunner is None:
             self.testRunner = HTMLTestRunner(verbosity=self.verbosity)
         unittest.TestProgram.runTests(self)
+
+
 
 main = TestProgram
 
