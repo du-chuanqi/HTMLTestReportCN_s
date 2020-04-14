@@ -72,7 +72,8 @@ __version__ = "0.8.2.3"
 """
 Change History
 Version 0.8.2.3 -Deardu
-*增加支持多张截图展示
+*增加支持多张截图展示，截图图片移至print截图路径的位置
+*增加显示/隐藏全部图片按钮，单个图片链接点击显示/隐藏
 
 Version 0.8.2.2-huanghe
 *添加截图展示功能
@@ -295,6 +296,23 @@ function html_escape(s) {
     s = s.replace(/>/g,'&gt;');
     return s;
 }
+
+//增加显示隐藏所有图片按钮 --deardu
+var showimg = 0
+function showImg(){
+    if (showimg === 0){
+        for (var i=0;i<img.length;i++){
+            img[i].className = 'image';
+        }
+        showimg = showimg+1
+    }
+    else {
+        for (var i=0;i<img.length;i++){
+            img[i].className = 'image hide';
+        }
+    showimg = showimg-1
+    }
+}
 </script>
 %(heading)s
 %(report)s
@@ -335,6 +353,17 @@ table       { font-size: 100%; }
 .errorCase  { color: #f0ad4e; font-weight: bold; }
 .hiddenRow  { display: none; }
 .testcase   { margin-left: 2em; }
+
+.button{
+    cursor: pointer;
+}
+img.image{
+    display: inline-block;
+}
+.image.hide{
+    display: none;
+}
+
 </style>
 """
 
@@ -365,6 +394,7 @@ table       { font-size: 100%; }
 <a class="btn btn-danger" href='javascript:showCase(1)'>失败{ %(fail)s }</a>
 <a class="btn btn-success" href='javascript:showCase(2)'>通过{ %(Pass)s }</a>
 <a class="btn btn-info" href='javascript:showCase(3)'>所有{ %(count)s }</a>
+<input class="btn" type="button" value="显示/隐藏所有图片" onclick="showImg()"
 </p>
 <table id='result_table' class="table table-condensed table-bordered table-hover">
 <colgroup>
@@ -413,11 +443,11 @@ table       { font-size: 100%; }
     <td colspan='5' align='center'>
     <!--默认收起错误信息 -Findyou
     <button id='btn_%(tid)s' type="button"  class="btn btn-danger btn-xs collapsed" data-toggle="collapse" data-target='#div_%(tid)s'>%(status)s</button>
-    <div id='div_%(tid)s' class="collapse">  -->
+    <div id='div_%(tid)s' class="collapse" >  -->
 
     <!-- 默认展开错误信息 -Findyou -->
     <button id='btn_%(tid)s' type="button"  class="btn btn-danger btn-xs" data-toggle="collapse" data-target='#div_%(tid)s'>%(status)s</button>
-    <div id='div_%(tid)s' class="collapse in">
+    <div id='div_%(tid)s' class="collapse in" align='left'>
     <pre>
     %(script)s
     </pre>
@@ -434,21 +464,38 @@ table       { font-size: 100%; }
 </tr>
 """ # variables: (tid, Class, style, desc, status)
 
-    REPORT_TEST_OUTPUT_TMPL = r"""
-%(id)s: %(output)s
-<a target='_blank' %(hidde)s href="%(image)s">
-<img %(hidde)s src="%(image)s" alt="picture_shot" height="200" width="400"></img>
-</a>
-""" # variables: (id, output)
+    # 显示截图  -deardu
+    REPORT_TEST_OUTPUT_TMPL = r"""%(id)s %(output)s<a target='_blank' %(hidde)s href="%(image)s">
+<img name="img" class='image' %(hidde)s src="%(image)s" alt="picture_shot" height="200" width="400"></a>"""
+
+    REPORT_TEST_OUTPUT_IMG_TMPL = r"""<p style="color:blue"><span class='button'>%(id)s %(output)s</span><a name="img" class = 'image hide' target='_blank' href="%(image)s">
+<img src="%(image)s" alt="picture_shot" height="200" width="400"></a></p>"""
+    # variables: (id, output)
 
     # ------------------------------------------------------------------------
     # ENDING
     #
     # 增加返回顶部按钮  --Findyou
+    # 增加点击图片路径显示隐藏当前图片 - - deardu
     ENDING_TMPL = """<div id='ending'>&nbsp;</div>
     <div style=" position:fixed;right:50px; bottom:30px; width:20px; height:20px;cursor:pointer">
     <a href="#"><span class="glyphicon glyphicon-eject" style = "font-size:30px;" aria-hidden="true">
     </span></a></div>
+    <script language="javascript" type="text/javascript">
+    var img=document.getElementsByName('img');
+let button = [...document.querySelectorAll('.button')];
+        for (let i = 0; i <= button.length - 1; i++) {
+            button[i].addEventListener('click', (e) => {
+                let target = e.target.parentNode.querySelector('a');
+                let Name = target.className;
+                if (Name === 'image') {
+                    target.className = 'image hide';
+                } else {
+                    target.className = 'image';
+                }
+            });
+        }
+    </script>
     """
 
 # -------------------- The end of the Template class -------------------
@@ -709,6 +756,16 @@ class HTMLTestRunner(Template_mixin):
 
     def _generate_report_test(self, rows, cid, tid, n, t, o, e):
         # e.g. 'pt1.1', 'ft1.1', etc
+        """
+        :param rows:
+        :param cid:
+        :param tid:
+        :param n:
+        :param t:
+        :param o: 在testcase中print 出来的内容，即在装饰器中打印出来的图片地址
+        :param e: exception的内容，一些出错信息。
+        :return:
+        """
         has_output = bool(o or e)
         # ID修改点为下划线,支持Bootstrap折叠展开特效 - Findyou
         tid = (n == 0 and 'p' or 'f') + 't%s_%s' % (cid+1,tid+1)
@@ -760,18 +817,20 @@ class HTMLTestRunner(Template_mixin):
                 # output = saxutils.escape(ue),
                 hidde='hidden',
                 image='IAMGEURL'
-                #image= image_url[0]
+                # image= image_url[0]
             ))
-            j=1
+            j = 1
             for i in image_url:
-                script .append( self.REPORT_TEST_OUTPUT_TMPL % dict(
-                    id = '截图%s'%(j),
-                    #id=tid[2:],
-                    output = '',
-                    hidde=hidde_status,
+                oOo = i.replace('file:///', '')
+                OoO = self.REPORT_TEST_OUTPUT_IMG_TMPL % dict(
+                    id=oOo,
+                    # id=tid[2:],
+                    output='',
                     image=i,
-                ))
-                j+=1
+                )
+                for _ in range(len(script)):
+                    script[_] = script[_].replace(oOo, OoO)
+                j += 1
         else:
             script.append(self.REPORT_TEST_OUTPUT_TMPL % dict(
                 id=tid[2:],
